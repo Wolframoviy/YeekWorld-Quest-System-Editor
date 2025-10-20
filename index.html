@@ -173,7 +173,7 @@ function addObjective(data){
   ['COLLECT','KILL','EXPLORE'].forEach(t=>{
     const o = create('option'); o.value=t; o.textContent=t; typeSel.appendChild(o);
   });
-  typeSel.value = data?.type || 'ITEM';
+  typeSel.value = data?.type || 'COLLECT';
   typeSel.addEventListener('change', ()=> { renderObjectiveTarget(targetContainer, typeSel.value, data?.target); updatePreview(); });
   body.appendChild(typeSel);
 
@@ -192,7 +192,7 @@ function addObjective(data){
 
 function renderObjectiveTarget(container, type, initial){
   container.innerHTML='';
-  if(type === 'ITEM'){
+  if(type === 'COLLECT'){
     container.appendChild(create('label',{text:'item (minecraft:id)'}));
     const itemInput = create('input'); itemInput.type='text'; itemInput.placeholder='minecraft:diamond';
     itemInput.value = initial?.item || '';
