@@ -304,7 +304,7 @@ function buildQuestObject(){
 
     // find target fields depending on type
     const targetObj = {};
-    if(type === 'ITEM'){
+    if(type === 'COLLECT'){
       const itemField = node.querySelector('input[type="text"]:nth-of-type(2)'); // first text was id, second is item
       const numberField = Array.from(node.querySelectorAll('input[type="number"]'))[0];
       targetObj.item = itemField ? itemField.value.trim() : '';
