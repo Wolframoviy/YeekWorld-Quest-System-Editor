@@ -71,7 +71,7 @@
         <div class="section-title">Награды (rewards)</div>
         <div class="controls">
           <button id="add-reward">+ Добавить награду</button>
-          <div class="muted">Типы: ITEM, EXP, COMMAND, QUEST</div>
+          <div class="muted">Типы: COLLECT, EXP, COMMAND, QUEST</div>
         </div>
 
         <div id="rewards-list" class="list" style="margin-top:10px"></div>
@@ -170,7 +170,7 @@ function addObjective(data){
   // type
   body.appendChild(create('label',{text:'Тип цели'}));
   const typeSel = create('select');
-  ['ITEM','KILL','EXPLORE'].forEach(t=>{
+  ['COLLECT','KILL','EXPLORE'].forEach(t=>{
     const o = create('option'); o.value=t; o.textContent=t; typeSel.appendChild(o);
   });
   typeSel.value = data?.type || 'ITEM';
@@ -416,7 +416,7 @@ function populateFromJson(json){
       const data = {
         id: objId,
         description: obj.description || '',
-        type: obj.type || 'ITEM',
+        type: obj.type || 'COLLECT',
         target: obj.target || {}
       };
       addObjective(data);
@@ -434,7 +434,7 @@ function populateFromJson(json){
 }
 
 /* ====== init with one sample objective & reward ====== */
-addObjective({id:'example_objective', description:'Пример: собери 3 бриллианта', type:'ITEM', target:{item:'minecraft:diamond', value:3}});
+addObjective({id:'example_objective', description:'Пример: собери 3 бриллианта', type:'COLLECT', target:{item:'minecraft:diamond', value:3}});
 addReward({type:'ITEM', item:'minecraft:stick', value:2});
 updatePreview();
 
