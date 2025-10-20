@@ -71,7 +71,7 @@
         <div class="section-title">Награды (rewards)</div>
         <div class="controls">
           <button id="add-reward">+ Добавить награду</button>
-          <div class="muted">Типы: COLLECT, EXP, COMMAND, QUEST</div>
+          <div class="muted">Типы: ITEM, EXP, COMMAND, QUEST</div>
         </div>
 
         <div id="rewards-list" class="list" style="margin-top:10px"></div>
@@ -305,19 +305,19 @@ function buildQuestObject(){
     // find target fields depending on type
     const targetObj = {};
     if(type === 'COLLECT'){
-      const itemField = node.querySelector('input[type="text"]:nth-of-type(2)'); // first text was id, second is item
+      const itemField = Array.from(node.querySelectorAll('input[type="text"]'))[2]; // first text was id, second is item
       const numberField = Array.from(node.querySelectorAll('input[type="number"]'))[0];
       targetObj.item = itemField ? itemField.value.trim() : '';
       targetObj.value = numberField ? toInt(numberField.value, 0) : 0;
     } else if(type === 'KILL'){
       // after id and desc and type, find first text (mob) and first number (value)
       const textInputs = Array.from(node.querySelectorAll('input[type="text"]'));
-      const mobField = textInputs[1];
+      const mobField = textInputs[2];
       const numberField = node.querySelector('input[type="number"]');
       targetObj.targetMob = mobField ? mobField.value.trim() : '';
       targetObj.value = numberField ? toInt(numberField.value, 0) : 0;
     } else if(type === 'EXPLORE'){
-      const zoneField = Array.from(node.querySelectorAll('input[type="text"]'))[1]; // id, zone
+      const zoneField = Array.from(node.querySelectorAll('input[type="text"]'))[2]; // id, zone
       targetObj.zoneId = zoneField ? zoneField.value.trim() : '';
     }
 
