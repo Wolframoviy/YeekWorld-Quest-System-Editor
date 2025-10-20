@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Quest Constructor</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#15171b; --muted:#9aa3b2; --accent:#4cd964;
+    --danger:#ff6b6b; --panel:#0b0c0f; --text:#e6eef6;
+  }
+  body{font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;}
+  .wrap{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 420px;gap:18px;}
+  h1{margin:0 0 12px 0;font-size:20px}
+  .card{background:var(--card);padding:14px;border-radius:8px;box-shadow:0 1px 0 rgba(255,255,255,0.02) inset}
+  label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
+  input[type="text"], input[type="number"], textarea, select{
+    width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #222;background:var(--panel);color:var(--text);
+  }
+  textarea{resize:vertical;min-height:52px}
+  .row{display:flex;gap:8px;align-items:center}
+  .controls{display:flex;gap:8px;margin-top:8px}
+  button{background:#1f7bd1;border:none;padding:8px 10px;border-radius:6px;color:#fff;cursor:pointer}
+  .btn-ghost{background:transparent;border:1px solid #2b2b2b;color:var(--muted)}
+  .btn-danger{background:var(--danger)}
+  .section-title{font-weight:600;margin:6px 0 10px}
+  .list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+  .item{padding:10px;background:#0b0d10;border-radius:6px;border:1px solid #1a1a1a}
+  .item .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .small{font-size:13px;color:var(--muted)}
+  pre{background:#060709;border-radius:6px;padding:12px;color:#b8f2d8;overflow:auto;height:calc(100vh - 200px)}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .inline{display:inline-flex;gap:8px;align-items:center}
+  .flex{display:flex;gap:8px}
+  .muted{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h1>Quest Constructor</h1>
+
+      <div class="card">
+        <div class="section">
+          <label>ID квеста</label>
+          <input id="quest-id" placeholder="questid">
+          <label>Название</label>
+          <input id="quest-title" placeholder="Quest Title">
+          <label>Описание</label>
+          <textarea id="quest-desc" placeholder="Quest description"></textarea>
+
+          <label>Условие завершения</label>
+          <select id="completion-mode">
+            <option value="ALL">ALL (все цели)</option>
+            <option value="ONE_OF">ONE_OF (любая цель)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="section-title">Цели (objectives)</div>
+        <div class="controls">
+          <button id="add-objective">+ Добавить цель</button>
+          <div class="muted">Каждая цель имеет уникальный ID</div>
+        </div>
+
+        <div id="objectives-list" class="list" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="section-title">Награды (rewards)</div>
+        <div class="controls">
+          <button id="add-reward">+ Добавить награду</button>
+          <div class="muted">Типы: ITEM, EXP, COMMAND, QUEST</div>
+        </div>
+
+        <div id="rewards-list" class="list" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="actions">
+          <button id="export">Скачать JSON</button>
+          <button id="copy" class="btn-ghost">Копировать JSON</button>
+          <input id="import-file" type="file" accept=".json" style="display:none">
+          <button id="import" class="btn-ghost">Импортировать JSON</button>
+        </div>
+        <div class="muted" style="margin-top:8px">Авто-предпросмотр обновляется при изменении полей.</div>
+      </div>
+    </div>
+
+    <div>
+      <h1 style="font-size:18px">Предпросмотр JSON</h1>
+      <div class="card" style="height:calc(100vh - 70px);padding:10px;display:flex;flex-direction:column">
+        <pre id="preview" contenteditable="false"></pre>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ====== Helpers ====== */
+const $ = sel => document.querySelector(sel);
+const create = (tag, attrs = {}) => {
+  const e = document.createElement(tag);
+  for (const k in attrs) {
+    if (k === 'text') e.textContent = attrs[k];
+    else e.setAttribute(k, attrs[k]);
+  }
+  return e;
+};
+
+function toInt(v, fallback=0){ const n = parseInt(v); return Number.isNaN(n) ? fallback : n; }
+
+/* ====== UI containers ====== */
+const objectivesList = $('#objectives-list');
+const rewardsList = $('#rewards-list');
+const preview = $('#preview');
+const addObjectiveBtn = $('#add-objective');
+const addRewardBtn = $('#add-reward');
+const exportBtn = $('#export');
+const copyBtn = $('#copy');
+const importBtn = $('#import');
+const importFile = $('#import-file');
+
+const fields = ['#quest-id','#quest-title','#quest-desc','#completion-mode'];
+
+/* ====== Events ====== */
+addObjectiveBtn.addEventListener('click', addObjective);
+addRewardBtn.addEventListener('click', addReward);
+exportBtn.addEventListener('click', downloadJson);
+copyBtn.addEventListener('click', copyJson);
+importBtn.addEventListener('click', ()=> importFile.click());
+importFile.addEventListener('change', onImportFile);
+
+/* Attach live preview to main fields */
+fields.forEach(s => document.querySelector(s).addEventListener('input', updatePreview));
+
+/* ====== Functions to create UI items ====== */
+
+function addObjective(data){
+  // data optional: {id, description, type, target}
+  const item = create('div');
+  item.className = 'item objective-item';
+
+  const top = create('div'); top.className = 'top';
+  const title = create('div', {text: data?.id || 'Новая цель'});
+  title.style.fontWeight = 600;
+  top.appendChild(title);
+
+  const removeBtn = create('button', {text: 'Удалить'});
+  removeBtn.className = 'btn-ghost';
+  removeBtn.addEventListener('click', ()=> { item.remove(); updatePreview(); });
+  top.appendChild(removeBtn);
+
+  item.appendChild(top);
+
+  // body
+  const body = create('div');
+  // id
+  body.appendChild(create('label',{text:'ID цели'}));
+  const idInput = create('input'); idInput.type='text'; idInput.placeholder='objectiveId'; idInput.value = data?.id || '';
+  idInput.addEventListener('input', ()=> { title.textContent = idInput.value || 'Новая цель'; updatePreview(); });
+  body.appendChild(idInput);
+
+  // description
+  body.appendChild(create('label',{text:'Описание цели'}));
+  const desc = create('input'); desc.type='text'; desc.placeholder='Описание цели'; desc.value = data?.description || '';
+  desc.addEventListener('input', updatePreview);
+  body.appendChild(desc);
+
+  // type
+  body.appendChild(create('label',{text:'Тип цели'}));
+  const typeSel = create('select');
+  ['ITEM','KILL','EXPLORE'].forEach(t=>{
+    const o = create('option'); o.value=t; o.textContent=t; typeSel.appendChild(o);
+  });
+  typeSel.value = data?.type || 'ITEM';
+  typeSel.addEventListener('change', ()=> { renderObjectiveTarget(targetContainer, typeSel.value, data?.target); updatePreview(); });
+  body.appendChild(typeSel);
+
+  // target container (dynamic fields)
+  const targetContainer = create('div'); targetContainer.style.marginTop='8px';
+  body.appendChild(targetContainer);
+  renderObjectiveTarget(targetContainer, typeSel.value, data?.target);
+
+  item.appendChild(body);
+  objectivesList.appendChild(item);
+
+  // attach inputs to preview
+  item.querySelectorAll('input, select').forEach(el => el.addEventListener('input', updatePreview));
+  updatePreview();
+}
+
+function renderObjectiveTarget(container, type, initial){
+  container.innerHTML='';
+  if(type === 'ITEM'){
+    container.appendChild(create('label',{text:'item (minecraft:id)'}));
+    const itemInput = create('input'); itemInput.type='text'; itemInput.placeholder='minecraft:diamond';
+    itemInput.value = initial?.item || '';
+    itemInput.addEventListener('input', updatePreview);
+    container.appendChild(itemInput);
+
+    container.appendChild(create('label',{text:'value (количество)'}));
+    const val = create('input'); val.type='number'; val.min='0'; val.value = initial?.value ?? 1;
+    val.addEventListener('input', updatePreview);
+    container.appendChild(val);
+  } else if(type === 'KILL'){
+    container.appendChild(create('label',{text:'targetMob (minecraft:id)'}));
+    const mob = create('input'); mob.type='text'; mob.placeholder='minecraft:zombie'; mob.value = initial?.targetMob || '';
+    mob.addEventListener('input', updatePreview);
+    container.appendChild(mob);
+
+    container.appendChild(create('label',{text:'value (количество)'}));
+    const val = create('input'); val.type='number'; val.min='0'; val.value = initial?.value ?? 1;
+    val.addEventListener('input', updatePreview);
+    container.appendChild(val);
+  } else if(type === 'EXPLORE'){
+    container.appendChild(create('label',{text:'zoneId'}));
+    const zone = create('input'); zone.type='text'; zone.placeholder='zone_1'; zone.value = initial?.zoneId || '';
+    zone.addEventListener('input', updatePreview);
+    container.appendChild(zone);
+  }
+}
+
+function addReward(data){
+  // data optional: {type, item, value, command, questId}
+  const item = create('div'); item.className='item reward-item';
+  const top = create('div'); top.className='top';
+  const title = create('div', {text: data?.type || 'Новая награда'});
+  title.style.fontWeight = 600;
+  top.appendChild(title);
+  const removeBtn = create('button',{text:'Удалить'}); removeBtn.className='btn-ghost';
+  removeBtn.addEventListener('click', ()=> { item.remove(); updatePreview(); });
+  top.appendChild(removeBtn);
+  item.appendChild(top);
+
+  const body = create('div');
+  body.appendChild(create('label',{text:'Тип награды'}));
+  const sel = create('select');
+  ['ITEM','EXP','COMMAND','QUEST'].forEach(t=>{
+    const o = create('option'); o.value=t; o.textContent=t; sel.appendChild(o);
+  });
+  sel.value = data?.type || 'ITEM';
+  sel.addEventListener('change', ()=> { renderRewardBody(rewardBody, sel.value, data); updatePreview(); });
+  body.appendChild(sel);
+
+  const rewardBody = create('div'); rewardBody.style.marginTop='8px';
+  body.appendChild(rewardBody);
+  renderRewardBody(rewardBody, sel.value, data);
+
+  item.appendChild(body);
+  rewardsList.appendChild(item);
+  item.querySelectorAll('input, select').forEach(el => el.addEventListener('input', updatePreview));
+  updatePreview();
+}
+
+function renderRewardBody(container, type, data){
+  container.innerHTML='';
+  if(type === 'ITEM'){
+    container.appendChild(create('label',{text:'item (minecraft:id)'}));
+    const it = create('input'); it.type='text'; it.placeholder='minecraft:stick'; it.value = data?.item || '';
+    it.addEventListener('input', updatePreview);
+    container.appendChild(it);
+
+    container.appendChild(create('label',{text:'value (количество)'}));
+    const val = create('input'); val.type='number'; val.min='0'; val.value = data?.value ?? 1;
+    val.addEventListener('input', updatePreview);
+    container.appendChild(val);
+  } else if(type === 'EXP'){
+    container.appendChild(create('label',{text:'value (exp count)'}));
+    const val = create('input'); val.type='number'; val.min='0'; val.value = data?.value ?? 0;
+    val.addEventListener('input', updatePreview);
+    container.appendChild(val);
+  } else if(type === 'COMMAND'){
+    container.appendChild(create('label',{text:'command'}));
+    const cmd = create('input'); cmd.type='text'; cmd.placeholder='say Hello'; cmd.value = data?.command || '';
+    cmd.addEventListener('input', updatePreview);
+    container.appendChild(cmd);
+  } else if(type === 'QUEST'){
+    container.appendChild(create('label',{text:'questId (id другого квеста)'}));
+    const q = create('input'); q.type='text'; q.placeholder='other_quest_id'; q.value = data?.questId || '';
+    q.addEventListener('input', updatePreview);
+    container.appendChild(q);
+  }
+}
+
+/* ====== Build JSON from UI ====== */
+function buildQuestObject(){
+  const id = $('#quest-id').value.trim();
+  const title = $('#quest-title').value.trim();
+  const description = $('#quest-desc').value.trim();
+  const completionMode = $('#completion-mode').value;
+
+  // objectives: iterate DOM
+  const objectives = {};
+  const objectiveNodes = Array.from(document.querySelectorAll('.objective-item'));
+  for (const node of objectiveNodes){
+    const inputs = node.querySelectorAll('input, select');
+    // mapping: [idInput, desc, typeSel, ...targetInputs]
+    const idInput = inputs[0]; if(!idInput) continue;
+    const objId = idInput.value.trim();
+    if(!objId) continue;
+    const desc = inputs[1].value.trim();
+    const type = inputs[2].value;
+
+    // find target fields depending on type
+    const targetObj = {};
+    if(type === 'ITEM'){
+      const itemField = node.querySelector('input[type="text"]:nth-of-type(2)'); // first text was id, second is item
+      const numberField = Array.from(node.querySelectorAll('input[type="number"]'))[0];
+      targetObj.item = itemField ? itemField.value.trim() : '';
+      targetObj.value = numberField ? toInt(numberField.value, 0) : 0;
+    } else if(type === 'KILL'){
+      // after id and desc and type, find first text (mob) and first number (value)
+      const textInputs = Array.from(node.querySelectorAll('input[type="text"]'));
+      const mobField = textInputs[1];
+      const numberField = node.querySelector('input[type="number"]');
+      targetObj.targetMob = mobField ? mobField.value.trim() : '';
+      targetObj.value = numberField ? toInt(numberField.value, 0) : 0;
+    } else if(type === 'EXPLORE'){
+      const zoneField = Array.from(node.querySelectorAll('input[type="text"]'))[1]; // id, zone
+      targetObj.zoneId = zoneField ? zoneField.value.trim() : '';
+    }
+
+    objectives[objId] = {
+      type: type,
+      description: desc,
+      target: targetObj
+    };
+  }
+
+  // rewards: array
+  const rewards = [];
+  const rewardNodes = Array.from(document.querySelectorAll('.reward-item'));
+  for (const node of rewardNodes){
+    const sel = node.querySelector('select');
+    if(!sel) continue;
+    const type = sel.value;
+    if(type === 'ITEM'){
+      const item = node.querySelector('input[type="text"]').value.trim();
+      const value = toInt(node.querySelector('input[type="number"]').value, 0);
+      rewards.push({ type: 'ITEM', item, value });
+    } else if(type === 'EXP'){
+      const value = toInt(node.querySelector('input[type="number"]').value, 0);
+      rewards.push({ type: 'EXP', value });
+    } else if(type === 'COMMAND'){
+      const command = node.querySelector('input[type="text"]').value.trim();
+      rewards.push({ type: 'COMMAND', command });
+    } else if(type === 'QUEST'){
+      const questId = node.querySelector('input[type="text"]').value.trim();
+      rewards.push({ type: 'QUEST', questId });
+    }
+  }
+
+  const obj = {
+    id: id || '',
+    title: title || '',
+    description: description || '',
+    completionMode: completionMode,
+    objectives: objectives,
+    rewards: rewards
+  };
+  return obj;
+}
+
+/* ====== Preview & Export ====== */
+function updatePreview(){
+  const obj = buildQuestObject();
+  preview.textContent = JSON.stringify(obj, null, 2);
+}
+
+function downloadJson(){
+  const obj = buildQuestObject();
+  const json = JSON.stringify(obj, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (obj.id || 'quest') + '.json';
+  a.click();
+}
+
+function copyJson(){
+  const text = preview.textContent;
+  navigator.clipboard?.writeText(text).then(()=> alert('Скопировано в буфер обмена'), ()=> alert('Не удалось копировать'));
+}
+
+function onImportFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const json = JSON.parse(reader.result);
+      populateFromJson(json);
+    } catch(err){
+      alert('Ошибка разбора JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function populateFromJson(json){
+  // meta
+  $('#quest-id').value = json.id || '';
+  $('#quest-title').value = json.title || '';
+  $('#quest-desc').value = json.description || '';
+  $('#completion-mode').value = json.completionMode || 'ALL';
+
+  // clear lists
+  objectivesList.innerHTML = '';
+  rewardsList.innerHTML = '';
+
+  // objectives (object mapping)
+  if(json.objectives && typeof json.objectives === 'object'){
+    for(const [objId, obj] of Object.entries(json.objectives)){
+      const data = {
+        id: objId,
+        description: obj.description || '',
+        type: obj.type || 'ITEM',
+        target: obj.target || {}
+      };
+      addObjective(data);
+      // set inputs already handled by addObjective using initial data
+    }
+  }
+
+  // rewards array
+  if(Array.isArray(json.rewards)){
+    for(const r of json.rewards){
+      addReward(r);
+    }
+  }
+  updatePreview();
+}
+
+/* ====== init with one sample objective & reward ====== */
+addObjective({id:'example_objective', description:'Пример: собери 3 бриллианта', type:'ITEM', target:{item:'minecraft:diamond', value:3}});
+addReward({type:'ITEM', item:'minecraft:stick', value:2});
+updatePreview();
+
+</script>
+</body>
+</html>
